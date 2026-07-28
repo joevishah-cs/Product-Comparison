@@ -60,5 +60,18 @@ export default defineConfig(async () => {
       sites(),
       ...(cloudflarePlugin ? [cloudflarePlugin] : []),
     ],
+    // @prisma/client's generated runtime resolves its native query-engine
+    // binary and schema.prisma relative to its own __dirname/eval("__dirname").
+    // Bundling it into vinext's ESM server output breaks that (Node ESM has no
+    // __dirname), so keep it external and let Node load it normally from
+    // node_modules at runtime instead. Only applies to the plain-Node build
+    // (LOCAL_VITE=1); the Cloudflare Workers build path is unaffected.
+    ...(!useCloudflareRuntime
+      ? {
+          ssr: {
+            external: ["@prisma/client", ".prisma/client"],
+          },
+        }
+      : {}),
   };
 });
