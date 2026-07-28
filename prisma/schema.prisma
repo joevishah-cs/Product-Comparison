@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  name              String?
+  savedComparisons  SavedComparison[]
+}
+
+model Brand {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+model ProductFamily {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id       String                    @id @default(cuid())
+  model    String
+  brand    Brand                     @relation(fields: [brandId], references: [id])
+  brandId  String
+  family   ProductFamily?            @relation(fields: [familyId], references: [id])
+  familyId String?
+  values   ProductAttributeValue[]
+}
+
+model AttributeDefinition {
+  id                    String                    @id @default(cuid())
+  key                   String                    @unique
+  label                 String
+  category              String
+  comparisonDirection   String
+  tolerance             Float?
+  values                ProductAttributeValue[]
+}
+
+model ProductAttributeValue {
+  id              String              @id @default(cuid())
+  product         Product             @relation(fields: [productId], references: [id])
+  productId       String
+  definition      AttributeDefinition @relation(fields: [definitionId], references: [id])
+  definitionId    String
+  rawValue        String
+  normalizedValue String?
+  unit            String?
+  status          String
+  sourceLocation  String
+  confidence      String
+
+  @@unique([productId, definitionId])
+}
+
+model SourceDocument {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  type      String
+  importedAt DateTime         @default(now())
+  locations SourceLocation[]
+}
+
+model SourceLocation {
+  id           String         @id @default(cuid())
+  document     SourceDocument @relation(fields: [documentId], references: [id])
+  documentId   String
+  locator      String
+  rawExcerpt   String?
+}
+
+model SavedComparison {
+  id            String   @id @default(cuid())
+  name          String
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  weights       String   @default("{}")
+  productIds    String   @default("[]")
+  notes         String?
+  dashboard     String?
+  insights      String?
+  battlecard    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ChatConversation {
+  id       String         @id @default(cuid())
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id             String            @id @default(cuid())
+  conversation   ChatConversation  @relation(fields: [conversationId], references: [id])
+  conversationId String
+  role           String
+  content        String
+  citations      String            @default("[]")
+}
