@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Single-page app: every route is served by index.html and resolved client-side.
+# Required for /compare, /report?... deep links and hard refreshes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
