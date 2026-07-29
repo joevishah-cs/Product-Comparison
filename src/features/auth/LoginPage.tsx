@@ -1,31 +1,12 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, AlertCircle, ShieldCheck, BarChart3, FileSearch, Loader2 } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth, DEMO_EMAIL, DEMO_PASSWORD } from "./AuthProvider";
-import { PRODUCTS, SOURCE_DOCUMENTS } from "@/data/catalog";
-
-const HIGHLIGHTS = [
-  {
-    icon: FileSearch,
-    title: "Every value traced to a cell",
-    body: `${PRODUCTS.length} products imported from ${SOURCE_DOCUMENTS.length} source documents, each attribute carrying its page, sheet and cell of origin.`,
-  },
-  {
-    icon: BarChart3,
-    title: "Comparison you can project",
-    body: "Large-type charts, plain-language explanations and printable evidence built for the room, not the spreadsheet.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Claims that survive scrutiny",
-    body: "Advantages are calculated from source values only. A blank cell is never read as a “No”.",
-  },
-];
 
 export function LoginPage() {
   const { signIn, user } = useAuth();
@@ -65,71 +46,32 @@ export function LoginPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      {/* Brand panel */}
-      <section className="relative hidden overflow-hidden bg-navy-900 px-10 py-14 lg:flex lg:flex-col xl:px-16">
+      {/* Brand panel — deliberately minimal: logo, product name, one line. */}
+      <section className="relative hidden overflow-hidden bg-navy-900 lg:flex lg:flex-col lg:justify-between lg:p-10">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-90"
           style={{
             background:
-              "radial-gradient(1100px 620px at 12% -8%, rgba(0,151,224,0.55), transparent 62%), radial-gradient(820px 520px at 96% 104%, rgba(89,188,255,0.32), transparent 60%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
+              "radial-gradient(1100px 620px at 12% -8%, rgba(0,151,224,0.45), transparent 62%), radial-gradient(820px 520px at 96% 104%, rgba(89,188,255,0.25), transparent 60%)",
           }}
         />
 
-        <div className="relative z-10 flex h-full flex-col">
-          <img src="/brand/daikin-logo.png" alt="Daikin" className="h-9 w-auto brightness-0 invert" />
-
-          <div className="mt-auto max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-daikin-300">
-              Daikin Competitive Marketing Intelligence
-            </p>
-            <h1 className="mt-5 text-balance text-4xl font-bold leading-[1.12] text-white xl:text-5xl">
-              Turn verified product intelligence into market momentum.
-            </h1>
-            <p className="mt-5 text-xl font-medium text-daikin-200">Compare. Position. Win.</p>
-
-            <ul className="mt-10 space-y-4">
-              {HIGHLIGHTS.map((h) => (
-                <li key={h.title} className="flex gap-4 rounded-2xl bg-white/[0.07] p-4 ring-1 ring-inset ring-white/10">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10 text-daikin-200">
-                    <h.icon className="size-5" aria-hidden />
-                  </span>
-                  <div>
-                    <p className="font-semibold text-white">{h.title}</p>
-                    <p className="mt-0.5 text-[0.9375rem] leading-relaxed text-navy-200">{h.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-10 flex items-center gap-4">
-            <img
-              src="/products/sd-daikin.svg"
-              alt="Representative illustration of a side-discharge inverter outdoor unit"
-              className="h-20 w-28 rounded-xl object-cover ring-1 ring-white/15"
-            />
-            <img
-              src="/products/atw-daikin.svg"
-              alt="Representative illustration of an air-to-water heat pump"
-              className="h-20 w-28 rounded-xl object-cover ring-1 ring-white/15"
-            />
-            <p className="text-sm leading-relaxed text-navy-300">
-              Representative equipment illustrations.
-              <br />
-              Imported sources contain no manufacturer photography.
-            </p>
-          </div>
+        <div className="relative z-10 flex items-center gap-3">
+          <img src="/brand/daikin-logo.png" alt="Daikin" className="h-6 w-auto brightness-0 invert" />
         </div>
+
+        <div className="relative z-10 max-w-md">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-daikin-300">
+            Competitive Marketing Intelligence
+          </p>
+          <h1 className="mt-4 text-balance text-3xl font-bold leading-tight text-white">
+            Turn verified product intelligence into market momentum.
+          </h1>
+          <p className="mt-3 text-lg font-medium text-daikin-200">Compare. Position. Win.</p>
+        </div>
+
+        <p className="relative z-10 text-xs text-navy-400">© Daikin — internal sales enablement</p>
       </section>
 
       {/* Form panel */}
