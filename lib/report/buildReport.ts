@@ -30,6 +30,7 @@ export type Verdict = "better" | "comparable" | "behind" | "unknown";
 export interface TechnicalRow {
   label: string;
   category: string;
+  direction: "higher" | "lower" | "neutral";
   daikin: string;
   // One entry per competitor, in the same order as competitorProducts.
   competitors: Array<{ value: string; verdict: Verdict }>;
@@ -136,6 +137,7 @@ export function buildReport(
       technicalRows.push({
         label: attr.label,
         category: attr.category,
+        direction: attr.direction as "higher" | "lower" | "neutral",
         daikin: daikinVal?.raw ?? "—",
         competitors: competitorProducts.map((c) => ({
           value: attr.values[c.id]?.raw ?? "—",

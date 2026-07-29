@@ -193,30 +193,62 @@ export function BattleCard({
                 <th>Attribute</th>
                 <th>{daikinModel}</th>
                 {competitorModels.map((name, i) => (
-                  <th key={i} colSpan={2}>{name}</th>
+                  <th key={i}>{name}</th>
                 ))}
+                <th style={{ textAlign: "center", fontWeight: "600" }}>Leader</th>
               </tr>
             </thead>
             <tbody>
-              {report.technicalRows.map((row) => (
-                <tr key={row.label}>
-                  <th>
-                    {row.label}
-                    <small>{row.category}</small>
-                  </th>
-                  <td><b>{row.daikin}</b></td>
-                  {row.competitors.map((c, i) => (
-                    <React.Fragment key={i}>
-                      <td><b>{c.value}</b></td>
-                      <td>
-                        <span className={`verdict-pill verdict-${c.verdict}`}>
-                          {VERDICT_ICON[c.verdict]} {VERDICT_LABEL[c.verdict]}
+              {report.technicalRows.map((row) => {
+                const allProducts = [
+                  { model: daikinModel, value: row.daikin },
+                  ...row.competitors.map((c, i) => ({ model: competitorModels[i], value: c.value })),
+                ];
+
+                // Find the actual winner by comparing values numerically, respecting direction.
+                const numericValues = allProducts.map((p) => {
+                  const match = p.value.match(/(\d+(?:\.\d+)?)/);
+                  return { ...p, numeric: match ? parseFloat(match[1]) : null };
+                });
+
+                const validNumeric = numericValues.filter((v) => v.numeric !== null);
+                let leader = null;
+                if (validNumeric.length > 0) {
+                  // Compare based on direction: "higher" = max wins, "lower" = min wins
+                  const isHigherBetter = row.direction === "higher";
+                  leader = validNumeric.reduce((best, v) =>
+                    isHigherBetter
+                      ? v.numeric! > best.numeric! ? v : best
+                      : v.numeric! < best.numeric! ? v : best
+                  ).model;
+                } else {
+                  // If no numeric, check if all values are identical (tie)
+                  const uniqueValues = new Set(allProducts.map((p) => p.value));
+                  leader = uniqueValues.size === 1 ? null : allProducts[0].model; // Fallback
+                }
+
+                return (
+                  <tr key={row.label}>
+                    <th>
+                      {row.label}
+                      <small>{row.category}</small>
+                    </th>
+                    <td><b>{row.daikin}</b></td>
+                    {row.competitors.map((c, i) => (
+                      <td key={i}><b>{c.value}</b></td>
+                    ))}
+                    <td style={{ textAlign: "center" }}>
+                      {leader ? (
+                        <span className="verdict-pill verdict-better">
+                          ✅ {leader}
                         </span>
-                      </td>
-                    </React.Fragment>
-                  ))}
-                </tr>
-              ))}
+                      ) : (
+                        <span className="verdict-pill verdict-comparable">⚠ Tied</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
