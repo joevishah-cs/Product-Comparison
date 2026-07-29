@@ -153,22 +153,6 @@ export function LoginPage() {
               {busy && <Loader2 className="animate-spin" aria-hidden />}
               Sign in
             </Button>
-
-            <div className="relative py-1">
-              <span className="absolute inset-x-0 top-1/2 h-px bg-edge" aria-hidden />
-              <span className="relative mx-auto block w-fit bg-white px-3 text-sm text-navy-400">or</span>
-            </div>
-
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              className="w-full"
-              disabled={busy}
-              onClick={(e) => void submit(e, true)}
-            >
-              Use competition demo
-            </Button>
           </form>
 
           <div className={cn("mt-8 rounded-xl border border-edge bg-navy-50/70 p-4")}>
