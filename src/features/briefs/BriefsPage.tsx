@@ -34,6 +34,7 @@ import {
   type BriefFormat,
   type BriefSection,
 } from "./generate";
+import { ExecutiveNewsbrief } from "./ExecutiveNewsbrief";
 
 const SECTION_STYLE: Record<
   BriefSection["kind"],
@@ -52,6 +53,7 @@ export function BriefsPage() {
   const { user } = useAuth();
   const { notify } = useToast();
 
+  const [mode, setMode] = React.useState<"newsbrief" | "generator">("newsbrief");
   const [format, setFormat] = React.useState<BriefFormat>("competition_brief");
   const [audience, setAudience] = React.useState<Audience>("Dealer");
   const [focusProductId, setFocusProductId] = React.useState<string>("");
@@ -97,16 +99,51 @@ export function BriefsPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="eyebrow">Briefs &amp; newsletters</p>
-        <h1 className="mt-2.5 text-3xl font-bold text-navy-900">Generate source-backed content</h1>
-        <p className="mt-2 max-w-3xl text-lg text-navy-500">
-          Every line is generated from the products you selected and the values recorded in the imported
-          sources, and labelled by what kind of statement it is.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">Briefs &amp; newsletters</p>
+          <h1 className="mt-2.5 text-3xl font-bold text-navy-900">
+            {mode === "newsbrief" ? "Executive newsbrief" : "Generate source-backed content"}
+          </h1>
+          <p className="mt-2 max-w-3xl text-lg text-navy-500">
+            {mode === "newsbrief"
+              ? "A daily-brief view of the logged coverage, competitive position and customer voice — ready to put in front of leadership."
+              : "Every line is generated from the products you selected and the values recorded in the imported sources, and labelled by what kind of statement it is."}
+          </p>
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Briefs view"
+          className="no-print inline-flex rounded-xl border border-edge bg-navy-100/70 p-1"
+        >
+          {(
+            [
+              { value: "newsbrief", label: "Executive newsbrief" },
+              { value: "generator", label: "Brief generator" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={mode === opt.value}
+              onClick={() => setMode(opt.value)}
+              className={cn(
+                "inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold transition-colors",
+                mode === opt.value
+                  ? "bg-white text-navy-900 shadow-sm"
+                  : "text-navy-600 hover:text-navy-900",
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </header>
 
-      {selected.length === 0 ? (
+      {mode === "newsbrief" && <ExecutiveNewsbrief />}
+
+      {mode === "generator" && (selected.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-edge bg-white p-12 text-center">
           <FileText className="mx-auto size-8 text-navy-300" aria-hidden />
           <p className="mt-3 text-lg font-semibold text-navy-700">No products selected</p>
@@ -290,7 +327,7 @@ export function BriefsPage() {
             </section>
           )}
         </>
-      )}
+      ))}
 
       {/* Saved drafts */}
       <section aria-label="Saved drafts" className="space-y-3">
