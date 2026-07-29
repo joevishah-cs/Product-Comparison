@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-canvas text-navy-900 font-sans text-base antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-navy-900 font-semibold tracking-[-0.015em];
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-none ring-2 ring-daikin-600 ring-offset-2 ring-offset-white rounded-lg;
+  }
+
+  ::selection {
+    @apply bg-daikin-200 text-navy-900;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply rounded-2xl border border-edge bg-white shadow-card;
+  }
+
+  .surface-muted {
+    @apply rounded-2xl border border-edge bg-navy-50/60;
+  }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.16em] text-daikin-700;
+  }
+
+  .scroll-shadow {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd9ea transparent;
+  }
+
+  .scroll-shadow::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+
+  .scroll-shadow::-webkit-scrollbar-thumb {
+    @apply rounded-full border-4 border-solid border-transparent bg-navy-200 bg-clip-content;
+  }
+
+  .scroll-shadow::-webkit-scrollbar-thumb:hover {
+    @apply bg-navy-300 bg-clip-content;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Recharts: keep labels legible when projected in a sales presentation. */
+.recharts-cartesian-axis-tick-value {
+  font-size: 14px;
+  font-weight: 500;
+  fill: #274060;
+}
+
+.recharts-legend-item-text {
+  font-size: 14px !important;
+  color: #274060 !important;
+}
+
+.recharts-label,
+.recharts-text {
+  font-size: 14px;
+}
+
+.recharts-surface:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-block {
+    display: block !important;
+  }
+
+  .print-full {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .surface {
+    box-shadow: none !important;
+    border-color: #cbd9ea !important;
+    break-inside: avoid;
+  }
+
+  .print-scroll-reset {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  /* Review cards, benefit cards and chart cards stay whole on letter pages. */
+  article,
+  li {
+    break-inside: avoid;
+  }
+
+}
