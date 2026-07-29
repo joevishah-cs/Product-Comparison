@@ -15,6 +15,8 @@ import { useSelection } from "@/features/selection/SelectionProvider";
 import { deleteRow, insertRow, listRows, type ReviewSignal, type Sentiment } from "@/lib/store";
 import { DAIKIN_FILL } from "@/components/charts/palette";
 import { ImportedReviewsSection } from "./ImportedReviewsSection";
+import { loadReviewSource } from "./useReviewSource";
+import type { ReviewRecord } from "@/data/review-types";
 
 const SENTIMENTS: { value: Sentiment; label: string; color: string; badge: "verified" | "caution" | "risk" }[] = [
   { value: "positive", label: "Positive", color: "#16a45c", badge: "verified" },
@@ -63,13 +65,83 @@ export function ReviewsPage() {
     themes: [] as string[],
   });
 
+  /** Maps detected review themes onto the field-note theme chips. */
+  const THEME_MAP: Record<string, string> = React.useMemo(
+    () => ({
+      quietness: "Sound",
+      heating: "Cold-weather heating",
+      installation: "Installation & commissioning",
+      controls: "Controls & app",
+      humidity: "Humidity control",
+      service: "Service & diagnostics",
+      efficiency: "Efficiency & bills",
+      size: "Footprint & siting",
+    }),
+    [],
+  );
+
+  /** First visit: seed the board with verbatim excerpts from the imported review
+   *  export — real customer text with real dates, never invented notes. Balanced:
+   *  positives, a neutral and the concerns are all included. */
+  const seedFromImportedReviews = React.useCallback(async () => {
+    if (!user) return 0;
+    const source = await loadReviewSource().catch(() => null);
+    if (!source) return 0;
+
+    const catalogFor: Record<string, string> = {
+      DH6VS: "bc_dh6vs-fit-daikin",
+      DH7VS: "bc_dh7vs-fit-daikin",
+      DH9VS: "bc_dh9vs-fit-aurora-daikin",
+    };
+    const pool = source.reviews.filter(
+      (r) => catalogFor[r.productId.toUpperCase()] && r.text.trim().length > 80,
+    );
+    const longest = (rs: ReviewRecord[], n: number) =>
+      rs.slice().sort((a, b) => b.text.length - a.text.length).slice(0, n);
+
+    const picks = [
+      ...longest(pool.filter((r) => r.sentiment === "positive"), 3),
+      ...longest(pool.filter((r) => r.sentiment === "neutral"), 2),
+      ...longest(pool.filter((r) => r.sentiment === "negative"), 1),
+    ];
+
+    let added = 0;
+    for (const r of picks) {
+      await insertRow<ReviewSignal>("review_signals", {
+        id: uid("rev"),
+        owner_email: user.email,
+        product_id: catalogFor[r.productId.toUpperCase()],
+        sentiment: r.sentiment === "positive" ? "positive" : r.sentiment === "neutral" ? "mixed" : "concern",
+        excerpt: r.title ? `${r.title} — ${r.text}` : r.text,
+        context: "Verbatim excerpt from the imported customer-review export.",
+        reviewer_type: "Homeowner",
+        source: `${source.sourceFile} · sheet "${source.sourceSheet}" · review ${r.id}`,
+        occurred_on: r.date ?? new Date().toISOString().slice(0, 10),
+        verification_status: "approved_excerpt",
+        themes: Array.from(new Set(r.themes.map((t) => THEME_MAP[t]).filter(Boolean))) as string[],
+        created_at: new Date().toISOString(),
+      });
+      added += 1;
+    }
+    return added;
+  }, [user, THEME_MAP]);
+
   const reload = React.useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const rows = await listRows<ReviewSignal>("review_signals", user.email);
+    let rows = await listRows<ReviewSignal>("review_signals", user.email);
+    const SEED_FLAG = "dcmi.v1.fieldNotesSeeded";
+    if (rows.length === 0 && !window.localStorage.getItem(SEED_FLAG)) {
+      // Claim the flag before the first await so StrictMode cannot seed twice.
+      try {
+        window.localStorage.setItem(SEED_FLAG, "1");
+      } catch { /* storage unavailable */ }
+      await seedFromImportedReviews();
+      rows = await listRows<ReviewSignal>("review_signals", user.email);
+    }
     setSignals(rows);
     setLoading(false);
-  }, [user]);
+  }, [user, seedFromImportedReviews]);
 
   React.useEffect(() => {
     void reload();
