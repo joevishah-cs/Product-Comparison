@@ -9,6 +9,7 @@ import { AIInsights } from "./frontend/components/AIInsights";
 import { GraphicalComparison } from "./frontend/components/GraphicalComparison";
 import { BattleCard } from "./frontend/components/BattleCard";
 import { SavedComparisons } from "./frontend/components/SavedComparisons";
+import { useReportPipeline } from "./frontend/lib/useReportPipeline";
 
 type View = "Dashboard" | "Explorer" | "Compare" | "Specifications" | "Insights" | "Charts" | "BattleCard" | "Saved";
 
@@ -28,7 +29,14 @@ export default function Home() {
   const [preloadedInsights, setPreloadedInsights] = useState<string | undefined>(undefined);
   const [preloadedBattlecard, setPreloadedBattlecard] = useState<string | undefined>(undefined);
   const [preloadedDashboard, setPreloadedDashboard] = useState<string | undefined>(undefined);
+  // Which product selection the preloaded AI text above actually belongs to.
+  // Every tab checks this against the current `selected` before trusting the
+  // preloaded* props, so stale AI text from a previous comparison can never
+  // silently reappear if some future code path forgets to clear it.
+  const [preloadedForIds, setPreloadedForIds] = useState<string>("");
   const [openSavedId, setOpenSavedId] = useState<string | null>(null);
+  const selectionSignature = [...selected].sort().join(",");
+  const preloadsAreCurrent = preloadedForIds === selectionSignature;
   const [email, setEmail] = useState("demo@daikin.com");
   const [password, setPassword] = useState("DaikinDemo2026!");
   const [loginError, setLoginError] = useState("");
@@ -61,6 +69,7 @@ export default function Home() {
       setPreloadedInsights(data.insights || undefined);
       setPreloadedBattlecard(data.battlecard || undefined);
       setPreloadedDashboard(data.dashboard || undefined);
+      setPreloadedForIds([...comparison.productIds].sort().join(","));
     } catch (error) {
       console.error("Failed to load saved comparison:", error);
     }
@@ -75,6 +84,29 @@ export default function Home() {
       body: JSON.stringify({ [field]: value }),
     }).catch((error) => console.error(`Failed to cache ${field}:`, error));
   };
+
+  const pipeline = useReportPipeline(
+    selected,
+    preloadedInsights,
+    preloadedDashboard,
+    preloadedBattlecard,
+    preloadsAreCurrent,
+    (text) => {
+      setPreloadedInsights(text);
+      setPreloadedForIds(selectionSignature);
+      persistGenerated("insights", text);
+    },
+    (text) => {
+      setPreloadedDashboard(text);
+      setPreloadedForIds(selectionSignature);
+      persistGenerated("dashboard", text);
+    },
+    (text) => {
+      setPreloadedBattlecard(text);
+      setPreloadedForIds(selectionSignature);
+      persistGenerated("battlecard", text);
+    }
+  );
 
   const nav: Array<{ label: View; icon: string; title: string }> = [
     { label: "Dashboard", title: "Product Selection", icon: "⊕" },
@@ -190,11 +222,15 @@ export default function Home() {
             onSelect={(ids) => {
               setPreloadedInsights(undefined);
               setPreloadedBattlecard(undefined);
+              setPreloadedDashboard(undefined);
+              setOpenSavedId(null);
               setSelected(ids);
             }}
             onCompare={(ids) => {
               setPreloadedInsights(undefined);
               setPreloadedBattlecard(undefined);
+              setPreloadedDashboard(undefined);
+              setOpenSavedId(null);
               setSelected(ids);
               setView("Compare");
             }}
@@ -206,11 +242,10 @@ export default function Home() {
             units={units}
             onEdit={() => setView("Dashboard")}
             onNext={() => setView("Specifications")}
-            preloaded={preloadedDashboard}
-            onGenerated={(text) => {
-              setPreloadedDashboard(text);
-              persistGenerated("dashboard", text);
-            }}
+            comparison={pipeline.comparison}
+            dashboardText={pipeline.dashboardText}
+            dashboardLoading={pipeline.dashboardLoading}
+            dashboardStatus={pipeline.dashboardStatus}
           />
         )}
         {view === "Specifications" && <SpecificationTable productIds={selected} units={units} onBack={() => setView("Compare")} onNext={() => setView("Insights")} />}
@@ -219,11 +254,9 @@ export default function Home() {
             productIds={selected}
             onBack={() => setView("Specifications")}
             onNext={() => setView("Charts")}
-            preloaded={preloadedInsights}
-            onGenerated={(text) => {
-              setPreloadedInsights(text);
-              persistGenerated("insights", text);
-            }}
+            insightsText={pipeline.insightsText}
+            loading={pipeline.insightsLoading}
+            statusText={pipeline.insightsStatus}
           />
         )}
         {view === "Charts" && <GraphicalComparison productIds={selected} onBack={() => setView("Insights")} onNext={() => setView("BattleCard")} />}
@@ -231,13 +264,28 @@ export default function Home() {
           <BattleCard
             productIds={selected}
             onBack={() => setView("Charts")}
-            preloaded={preloadedBattlecard}
-            preloadedInsights={preloadedInsights}
-            preloadedDashboard={preloadedDashboard}
-            onGenerated={(text) => {
-              setPreloadedBattlecard(text);
-              persistGenerated("battlecard", text);
-            }}
+            comparison={pipeline.comparison}
+            insightsText={pipeline.insightsText}
+            dashboardText={pipeline.dashboardText}
+            battlecardText={pipeline.battlecardText}
+            loading={
+              !pipeline.comparison ||
+              pipeline.insightsLoading ||
+              pipeline.dashboardLoading ||
+              pipeline.battlecardLoading ||
+              (!pipeline.insightsText || !pipeline.dashboardText || !pipeline.battlecardText)
+            }
+            statusText={
+              pipeline.insightsLoading
+                ? pipeline.insightsStatus
+                : pipeline.dashboardLoading
+                ? pipeline.dashboardStatus
+                : pipeline.battlecardLoading
+                ? pipeline.battlecardStatus
+                : !pipeline.comparison
+                ? "Fetching comparison data..."
+                : pipeline.battlecardStatus
+            }
           />
         )}
         {view === "Saved" && (

@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { parseDashboardInsights, type DashboardInsights } from "../../../lib/report/parsers";
-import { fetchAgentStream } from "../lib/useAgentStream";
+import { parseDashboardInsights } from "../../../lib/report/parsers";
 import { AIStatusLoader } from "./AIStatusLoader";
 
 interface ComparisonData {
@@ -131,69 +129,25 @@ interface ComparisonDashboardProps {
   units: Record<string, string>;
   onEdit: () => void;
   onNext?: () => void;
-  preloaded?: string;
-  onGenerated?: (dashboard: string) => void;
+  comparison: ComparisonData | null;
+  dashboardText: string;
+  dashboardLoading: boolean;
+  dashboardStatus: string;
 }
 
-export function ComparisonDashboard({ productIds, units, onEdit, onNext, preloaded, onGenerated }: ComparisonDashboardProps) {
-  const [comparison, setComparison] = useState<ComparisonData | null>(null);
-  const [dashboard, setDashboard] = useState<DashboardInsights | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [dashboardStatus, setDashboardStatus] = useState("Starting AI dashboard briefing...");
+export function ComparisonDashboard({
+  productIds,
+  units,
+  onEdit,
+  onNext,
+  comparison,
+  dashboardText,
+  dashboardLoading,
+  dashboardStatus,
+}: ComparisonDashboardProps) {
+  const dashboard = dashboardText ? parseDashboardInsights(dashboardText) : null;
 
-  useEffect(() => {
-    if (productIds.length < 2) return;
-
-    const fetchComparison = async () => {
-      setLoading(true);
-      try {
-        const compareRes = await fetch("/api/compare", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productIds }),
-        });
-        const compareData = await compareRes.json();
-        setComparison(compareData);
-      } catch (error) {
-        console.error("Failed to fetch comparison data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchDashboard = async () => {
-      if (preloaded) {
-        setDashboard(parseDashboardInsights(preloaded));
-        setDashboardLoading(false);
-        return;
-      }
-
-      setDashboardLoading(true);
-      setDashboardStatus("Starting AI dashboard briefing...");
-      try {
-        const result = await fetchAgentStream(
-          "/api/ai/dashboard",
-          { productIds },
-          "dashboard",
-          (event) => setDashboardStatus(event.detail)
-        );
-        if (result) {
-          setDashboard(parseDashboardInsights(result));
-          onGenerated?.(result);
-        }
-      } catch (error) {
-        console.error("Failed to fetch dashboard insights:", error);
-      } finally {
-        setDashboardLoading(false);
-      }
-    };
-
-    fetchComparison();
-    fetchDashboard();
-  }, [productIds, preloaded]);
-
-  if (loading) {
+  if (productIds.length >= 2 && !comparison) {
     return (
       <div className="page">
         <section className="comparison-overview">
@@ -337,7 +291,7 @@ export function ComparisonDashboard({ productIds, units, onEdit, onNext, preload
             ))}
           </div>
         ) : (
-          <AIStatusLoader title="Generating advantage scorecards" status={dashboardLoading ? dashboardStatus : "No scorecards available."} />
+          <AIStatusLoader title="Generating advantage scorecards" status={dashboardLoading ? dashboardStatus : dashboardStatus || "No scorecards available."} />
         )}
       </section>
 
@@ -433,7 +387,7 @@ export function ComparisonDashboard({ productIds, units, onEdit, onNext, preload
             </article>
           </div>
         ) : (
-          <AIStatusLoader title="Generating marketing takeaways" status={dashboardLoading ? dashboardStatus : "No takeaways available."} />
+          <AIStatusLoader title="Generating marketing takeaways" status={dashboardLoading ? dashboardStatus : dashboardStatus || "No takeaways available."} />
         )}
       </section>
 

@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { parseDashboardInsights, parseInsights } from "../../../lib/report/parsers";
 import { buildReport, type ComparisonData, type ReportData, type Verdict } from "../../../lib/report/buildReport";
-import { fetchAgentStream } from "../lib/useAgentStream";
 import { AIStatusLoader } from "./AIStatusLoader";
 
 interface BattleCardProps {
   productIds: string[];
   onBack?: () => void;
-  preloadedInsights?: string;
-  preloadedDashboard?: string;
-  preloaded?: string;
-  onGenerated?: (battlecard: string) => void;
+  comparison: ComparisonData | null;
+  insightsText: string;
+  dashboardText: string;
+  battlecardText: string;
+  loading: boolean;
+  statusText: string;
 }
 
 const VERDICT_ICON: Record<Verdict, string> = {
@@ -40,99 +41,15 @@ const EXPORT_OPTIONS = [
 export function BattleCard({
   productIds,
   onBack,
-  preloadedInsights,
-  preloadedDashboard,
-  preloaded,
-  onGenerated,
+  comparison,
+  insightsText,
+  dashboardText,
+  battlecardText,
+  loading,
+  statusText,
 }: BattleCardProps) {
-  const [comparison, setComparison] = useState<ComparisonData | null>(null);
-  const [battlecard, setBattlecard] = useState(preloaded || "");
-  const [insightsText, setInsightsText] = useState(preloadedInsights || "");
-  const [dashboardText, setDashboardText] = useState(preloadedDashboard || "");
-  const [loading, setLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
-  const [generatedDate, setGeneratedDate] = useState("");
-  const [statusText, setStatusText] = useState("Starting competitive analysis report...");
-
-  useEffect(() => {
-    setGeneratedDate(new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }));
-  }, []);
-
-  useEffect(() => {
-    if (productIds.length < 2) return;
-
-    const fetchAll = async () => {
-      setLoading(true);
-      setStatusText("Fetching comparison data...");
-      try {
-        const compareRes = await fetch("/api/compare", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productIds }),
-        });
-        const compareData = await compareRes.json();
-        setComparison(compareData);
-
-        const tasks: Promise<void>[] = [];
-
-        if (preloadedInsights) {
-          setInsightsText(preloadedInsights);
-        } else {
-          tasks.push(
-            fetchAgentStream(
-              "/api/ai/insights",
-              { productIds },
-              "insights",
-              (event) => setStatusText(`Insights: ${event.detail}`)
-            )
-              .then((result) => setInsightsText(result))
-              .catch((error) => console.error("Failed to fetch insights:", error))
-          );
-        }
-
-        if (preloadedDashboard) {
-          setDashboardText(preloadedDashboard);
-        } else {
-          tasks.push(
-            fetchAgentStream(
-              "/api/ai/dashboard",
-              { productIds },
-              "dashboard",
-              (event) => setStatusText(`Dashboard: ${event.detail}`)
-            )
-              .then((result) => setDashboardText(result))
-              .catch((error) => console.error("Failed to fetch dashboard insights:", error))
-          );
-        }
-
-        if (preloaded) {
-          setBattlecard(preloaded);
-        } else {
-          tasks.push(
-            fetchAgentStream(
-              "/api/ai/battlecard",
-              { productIds },
-              "battlecard",
-              (event) => setStatusText(`Battle card: ${event.detail}`)
-            )
-              .then((result) => {
-                setBattlecard(result);
-                onGenerated?.(result);
-              })
-              .catch((error) => console.error("Failed to fetch battlecard:", error))
-          );
-        }
-
-        await Promise.all(tasks);
-      } catch (error) {
-        console.error("Failed to build report:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAll();
-  }, [productIds, preloaded, preloadedInsights, preloadedDashboard]);
+  const generatedDate = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 
   if (!productIds.length || productIds.length < 2) {
     return (
@@ -145,7 +62,7 @@ export function BattleCard({
     );
   }
 
-  if (loading || !comparison) {
+  if (!comparison || !insightsText || !dashboardText || !battlecardText || loading) {
     return (
       <div className="page">
         <section className="page-title">
@@ -161,12 +78,13 @@ export function BattleCard({
 
   const dashboard = dashboardText ? parseDashboardInsights(dashboardText) : null;
   const insightSections = insightsText ? parseInsights(insightsText) : [];
-  const report: ReportData = buildReport(comparison, dashboard, insightSections, battlecard);
+  const report: ReportData = buildReport(comparison, dashboard, insightSections, battlecardText);
   report.generatedDate = generatedDate;
 
   const daikinModel = report.daikinProduct?.model ?? "Daikin";
-  const competitorModel = report.competitorProducts[0]?.model ?? "Competitor";
-  const fileSlug = `${daikinModel}_vs_${competitorModel}`.replace(/\s+/g, "_");
+  const competitorModels = report.competitorProducts.map((c) => c.model);
+  const competitorHeading = competitorModels.join(", ") || "Competitor";
+  const fileSlug = `${daikinModel}_vs_${competitorHeading}`.replace(/\s+/g, "_");
 
   const handlePrint = () => {
     window.print();
@@ -178,7 +96,7 @@ export function BattleCard({
       <section className="page-title">
         <div>
           <p className="eyebrow">AI COMPETITIVE ANALYSIS REPORT</p>
-          <h1>{daikinModel} vs {competitorModel}</h1>
+          <h1>{daikinModel} vs {competitorHeading}</h1>
           <p>Dynamically generated from live comparison, AI insights, and battle card data.</p>
         </div>
         <div className="button-row" style={{ position: "relative" }}>
@@ -207,15 +125,15 @@ export function BattleCard({
 
       <article className="panel report-section report-cover">
         <p className="eyebrow">AI COMPETITIVE ANALYSIS REPORT</p>
-        <h2>{daikinModel} vs {competitorModel}</h2>
+        <h2>{daikinModel} vs {competitorHeading}</h2>
         <div className="report-cover-grid">
           <div>
             <span>Daikin Product</span>
             <b>{daikinModel}</b>
           </div>
           <div>
-            <span>Competitor Product</span>
-            <b>{competitorModel}</b>
+            <span>{competitorModels.length > 1 ? "Competitor Products" : "Competitor Product"}</span>
+            <b>{competitorHeading}</b>
           </div>
           <div>
             <span>Generated Date</span>
@@ -244,7 +162,9 @@ export function BattleCard({
                 <tr>
                   <th>Item</th>
                   <th>{daikinModel}</th>
-                  <th>{competitorModel}</th>
+                  {competitorModels.map((name, i) => (
+                    <th key={i}>{name}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -252,7 +172,9 @@ export function BattleCard({
                   <tr key={row.item}>
                     <th>{row.item}</th>
                     <td><b>{row.daikin}</b></td>
-                    <td><b>{row.competitor}</b></td>
+                    {row.competitors.map((val, i) => (
+                      <td key={i}><b>{val}</b></td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -270,8 +192,9 @@ export function BattleCard({
               <tr>
                 <th>Attribute</th>
                 <th>{daikinModel}</th>
-                <th>{competitorModel}</th>
-                <th>Verdict</th>
+                {competitorModels.map((name, i) => (
+                  <th key={i} colSpan={2}>{name}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -282,12 +205,16 @@ export function BattleCard({
                     <small>{row.category}</small>
                   </th>
                   <td><b>{row.daikin}</b></td>
-                  <td><b>{row.competitor}</b></td>
-                  <td>
-                    <span className={`verdict-pill verdict-${row.verdict}`}>
-                      {VERDICT_ICON[row.verdict]} {VERDICT_LABEL[row.verdict]}
-                    </span>
-                  </td>
+                  {row.competitors.map((c, i) => (
+                    <React.Fragment key={i}>
+                      <td><b>{c.value}</b></td>
+                      <td>
+                        <span className={`verdict-pill verdict-${c.verdict}`}>
+                          {VERDICT_ICON[c.verdict]} {VERDICT_LABEL[c.verdict]}
+                        </span>
+                      </td>
+                    </React.Fragment>
+                  ))}
                 </tr>
               ))}
             </tbody>

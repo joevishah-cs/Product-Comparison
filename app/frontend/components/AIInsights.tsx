@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { parseInsights } from "../../../lib/report/parsers";
-import { fetchAgentStream } from "../lib/useAgentStream";
 import { AIStatusLoader } from "./AIStatusLoader";
 
 interface AIInsightsProps {
   productIds: string[];
   onBack?: () => void;
   onNext?: () => void;
-  preloaded?: string;
-  onGenerated?: (insights: string) => void;
+  insightsText: string;
+  loading: boolean;
+  statusText: string;
 }
 
 const SECTION_STYLES: Record<string, { color: string; bg: string; border: string; icon: string }> = {
@@ -25,41 +24,7 @@ function normalizeSectionTitle(title: string): string {
   return title.trim().replace(/\s+/g, " ").toUpperCase();
 }
 
-export function AIInsights({ productIds, onBack, onNext, preloaded, onGenerated }: AIInsightsProps) {
-  const [insights, setInsights] = useState(preloaded || "");
-  const [loading, setLoading] = useState(false);
-  const [statusText, setStatusText] = useState("Starting AI analysis...");
-
-  useEffect(() => {
-    if (productIds.length === 0) return;
-    if (preloaded) {
-      setInsights(preloaded);
-      return;
-    }
-
-    const fetchInsights = async () => {
-      setLoading(true);
-      setStatusText("Starting AI analysis...");
-      try {
-        const result = await fetchAgentStream(
-          "/api/ai/insights",
-          { productIds },
-          "insights",
-          (event) => setStatusText(event.detail)
-        );
-        setInsights(result);
-        onGenerated?.(result);
-      } catch (error) {
-        console.error("Failed to fetch insights:", error);
-        setInsights("Failed to generate insights. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInsights();
-  }, [productIds, preloaded]);
-
+export function AIInsights({ productIds, onBack, onNext, insightsText, loading, statusText }: AIInsightsProps) {
   if (!productIds.length) {
     return (
       <div className="page">
@@ -71,7 +36,7 @@ export function AIInsights({ productIds, onBack, onNext, preloaded, onGenerated 
     );
   }
 
-  const sections = parseInsights(insights);
+  const sections = parseInsights(insightsText);
 
   return (
     <div className="page">

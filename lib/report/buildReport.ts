@@ -31,8 +31,8 @@ export interface TechnicalRow {
   label: string;
   category: string;
   daikin: string;
-  competitor: string;
-  verdict: Verdict;
+  // One entry per competitor, in the same order as competitorProducts.
+  competitors: Array<{ value: string; verdict: Verdict }>;
 }
 
 export interface GapRow {
@@ -48,7 +48,7 @@ export interface ReportData {
   overallSimilarity: number;
   overallScore: number;
   executiveSummary: string;
-  productOverview: Array<{ item: string; daikin: string; competitor: string }>;
+  productOverview: Array<{ item: string; daikin: string; competitors: string[] }>;
   technicalRows: TechnicalRow[];
   strengths: string[];
   weaknesses: string[];
@@ -81,8 +81,8 @@ function verdictFor(attr: ComparisonAttribute, daikinId: string, competitorId: s
     return daikinWins ? "better" : "behind";
   }
 
-  const dRaw = daikinVal.raw.trim().toLowerCase();
-  const cRaw = compVal.raw.trim().toLowerCase();
+  const dRaw = (daikinVal.raw ?? "").trim().toLowerCase();
+  const cRaw = (compVal.raw ?? "").trim().toLowerCase();
   if (dRaw === cRaw) return "comparable";
   if (dRaw === "yes" && cRaw === "no") return "better";
   if (dRaw === "no" && cRaw === "yes") return "behind";
@@ -97,36 +97,32 @@ export function buildReport(
 ): ReportData {
   const daikinProduct = comparison.products.find((p) => p.brand === "Daikin") ?? null;
   const competitorProducts = comparison.products.filter((p) => p.id !== daikinProduct?.id);
-  const primaryCompetitor = competitorProducts[0];
 
   const daikinScore = daikinProduct ? comparison.scores.find((s) => s.productId === daikinProduct.id) : undefined;
   const overallScore = daikinScore?.score ?? 50;
 
-  const productOverview: Array<{ item: string; daikin: string; competitor: string }> = [];
-  if (daikinProduct && primaryCompetitor) {
-    productOverview.push({ item: "Brand", daikin: daikinProduct.brand, competitor: primaryCompetitor.brand });
+  const productOverview: Array<{ item: string; daikin: string; competitors: string[] }> = [];
+  if (daikinProduct && competitorProducts.length > 0) {
+    productOverview.push({
+      item: "Brand",
+      daikin: daikinProduct.brand,
+      competitors: competitorProducts.map((c) => c.brand),
+    });
 
-    const categoryAttr = comparison.attributes.find((a) => a.key === "Chassis Type");
-    if (categoryAttr) {
+    const overviewKeys = ["Chassis Type", "Refrigerant"];
+    for (const key of overviewKeys) {
+      const attr = comparison.attributes.find((a) => a.key === key);
+      if (!attr) continue;
       productOverview.push({
-        item: "Chassis Type",
-        daikin: categoryAttr.values[daikinProduct.id]?.raw ?? "—",
-        competitor: categoryAttr.values[primaryCompetitor.id]?.raw ?? "—",
-      });
-    }
-
-    const refrigerantAttr = comparison.attributes.find((a) => a.key === "Refrigerant");
-    if (refrigerantAttr) {
-      productOverview.push({
-        item: "Refrigerant",
-        daikin: refrigerantAttr.values[daikinProduct.id]?.raw ?? "—",
-        competitor: refrigerantAttr.values[primaryCompetitor.id]?.raw ?? "—",
+        item: key,
+        daikin: attr.values[daikinProduct.id]?.raw ?? "—",
+        competitors: competitorProducts.map((c) => attr.values[c.id]?.raw ?? "—"),
       });
     }
   }
 
   const technicalRows: TechnicalRow[] = [];
-  if (daikinProduct && primaryCompetitor) {
+  if (daikinProduct && competitorProducts.length > 0) {
     const orderedAttrs = [
       ...KEY_METRIC_KEYS.map((k) => comparison.attributes.find((a) => a.key === k)).filter((a): a is ComparisonAttribute => !!a),
       ...comparison.attributes.filter((a) => !KEY_METRIC_KEYS.includes(a.key)),
@@ -134,21 +130,31 @@ export function buildReport(
 
     for (const attr of orderedAttrs) {
       const daikinVal = attr.values[daikinProduct.id];
-      const compVal = attr.values[primaryCompetitor.id];
-      if (!daikinVal && !compVal) continue;
+      const hasAnyValue = daikinVal || competitorProducts.some((c) => attr.values[c.id]);
+      if (!hasAnyValue) continue;
 
       technicalRows.push({
         label: attr.label,
         category: attr.category,
         daikin: daikinVal?.raw ?? "—",
-        competitor: compVal?.raw ?? "—",
-        verdict: verdictFor(attr, daikinProduct.id, primaryCompetitor.id),
+        competitors: competitorProducts.map((c) => ({
+          value: attr.values[c.id]?.raw ?? "—",
+          verdict: verdictFor(attr, daikinProduct.id, c.id),
+        })),
       });
     }
   }
 
-  const strengths = technicalRows.filter((r) => r.verdict === "better").map((r) => r.label);
-  const weaknesses = technicalRows.filter((r) => r.verdict === "behind").map((r) => r.label);
+  // A row counts as an overall strength if Daikin beats every competitor on
+  // it, and a weakness if Daikin trails every competitor on it. Mixed
+  // results (better than one, behind another) show up in the table's
+  // per-competitor verdicts but aren't counted as a clean strength/weakness.
+  const strengths = technicalRows
+    .filter((r) => r.competitors.length > 0 && r.competitors.every((c) => c.verdict === "better"))
+    .map((r) => r.label);
+  const weaknesses = technicalRows
+    .filter((r) => r.competitors.length > 0 && r.competitors.every((c) => c.verdict === "behind"))
+    .map((r) => r.label);
 
   const differentiators = strengths
     .slice(0, 4)
@@ -176,17 +182,17 @@ export function buildReport(
 
   const gapRows: GapRow[] = weaknesses.slice(0, 5).map((w) => ({
     capability: w,
-    daikinStatus: "Behind selected competitor",
+    daikinStatus: "Behind selected competitors",
     recommendation: "Consider for future roadmap or portfolio positioning",
   }));
 
   const daikinName = daikinProduct?.model ?? "Daikin";
-  const competitorName = primaryCompetitor?.model ?? "the competitor";
+  const competitorNames = competitorProducts.map((c) => c.model).join(", ") || "the competitor";
   const executiveSummary =
     dashboard?.takeaways.interpretation ||
-    `This report compares ${daikinName} with ${competitorName}. Based on technical specifications, product documentation, and AI analysis, ${daikinName} demonstrates advantages in ${
+    `This report compares ${daikinName} with ${competitorNames}. Based on technical specifications, product documentation, and AI analysis, ${daikinName} demonstrates advantages in ${
       strengths.slice(0, 3).join(", ").toLowerCase() || "several evaluated attributes"
-    }, while ${competitorName} shows relative strength in ${weaknesses.slice(0, 2).join(", ").toLowerCase() || "select areas"}.`;
+    }, while the competition shows relative strength in ${weaknesses.slice(0, 2).join(", ").toLowerCase() || "select areas"}.`;
 
   const recommendedPositioning = strengths.length >= weaknesses.length ? "Premium Residential Market" : "Value-Driven Market";
   const suggestedMarketingFocus = strengths.slice(0, 2).join(" + ") || "Reliability + Total Cost of Ownership";

@@ -10,7 +10,7 @@ export interface DashboardInsights {
   };
 }
 
-export function parseDashboardInsights(raw: string): DashboardInsights {
+export function parseDashboardInsights(raw: string | null | undefined): DashboardInsights {
   const positioningSummary: string[] = [];
   const positioningGaps: string[] = [];
   const scorecards: { label: string; leader: string; description: string }[] = [];
@@ -20,6 +20,8 @@ export function parseDashboardInsights(raw: string): DashboardInsights {
     message: "",
     validation: "",
   };
+
+  if (!raw) return { positioningSummary, positioningGaps, scorecards, takeaways };
 
   const lines = raw.split("\n");
   let currentSection = "";
@@ -72,16 +74,17 @@ export interface ParsedInsightSection {
   lines: Array<{ text: string; level: number }>;
 }
 
-// Matches "1) TITLE", "2. TITLE:", "3) TITLE - rest", with or without a colon/dash after the title
-const HEADER_PATTERN = /^\s*\d+[).]\s*([A-Z][A-Z /]{2,40}?)\s*(?::|-|$)\s*(.*)$/;
+// Matches "1) TITLE", "2. TITLE:", "3) TITLE - rest", "4) TITLE (parenthetical)",
+// with or without a colon/dash/parenthetical/end-of-line after the title.
+const HEADER_PATTERN = /^\s*\d+[).]\s*([A-Z][A-Z /]{2,40}?)\s*(?::\s*(.*)|-\s*(.*)|\((.*)\)\s*$|$)/;
 // A bold-ish sub-heading inside a section, e.g. "Disadvantages:", "For fit-2:"
 const SUBHEADING_PATTERN = /^[A-Za-z][A-Za-z0-9 /'-]{0,40}:\s*$/;
 
-function normalizeSectionTitle(title: string): string {
-  return title.trim().replace(/\s+/g, " ").toUpperCase();
+function normalizeSectionTitle(title: string | undefined): string {
+  return (title ?? "").trim().replace(/\s+/g, " ").toUpperCase();
 }
 
-export function parseInsights(raw: string): ParsedInsightSection[] {
+export function parseInsights(raw: string | null | undefined): ParsedInsightSection[] {
   if (!raw) return [];
 
   const lines = raw.split("\n");
@@ -97,8 +100,11 @@ export function parseInsights(raw: string): ParsedInsightSection[] {
     if (headerMatch) {
       if (current) sections.push(current);
       current = { title: normalizeSectionTitle(headerMatch[1]), lines: [] };
-      if (headerMatch[2].trim()) {
-        current.lines.push({ text: headerMatch[2].trim(), level: 0 });
+      // Only one of the colon/dash/parenthetical alternation branches matches;
+      // pick whichever captured group actually has content.
+      const rest = (headerMatch[2] || headerMatch[3] || headerMatch[4] || "").trim();
+      if (rest) {
+        current.lines.push({ text: rest, level: 0 });
       }
       continue;
     }

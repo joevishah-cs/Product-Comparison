@@ -101,8 +101,20 @@ async function resolveToolLoop(
     { role: "user", content: userPrompt },
   ];
 
+  const REASONING_STATUS_MESSAGES = [
+    "Cross-checking retrieved specs...",
+    "Weighing the evidence...",
+    "Connecting the data points...",
+    "Double-checking source figures...",
+    "Drafting a grounded answer...",
+    "Refining the analysis...",
+    "Verifying every claim against source data...",
+  ];
+
+  const MAX_ROUNDS = 8;
   let current = response;
-  for (let i = 0; i < 5; i++) {
+
+  for (let i = 0; i < MAX_ROUNDS; i++) {
     const message = current.choices[0].message;
 
     if (!message.tool_calls || message.tool_calls.length === 0) {
@@ -128,14 +140,20 @@ async function resolveToolLoop(
       });
     }
 
-    logStage(agentName, "reasoning", `Round ${i + 1}: sending tool results back to model`, startedAt);
-    emit({ stage: "reasoning", detail: `Reasoning over retrieved data (round ${i + 1})...` });
+    const statusMessage = REASONING_STATUS_MESSAGES[i % REASONING_STATUS_MESSAGES.length];
+    logStage(agentName, "reasoning", `Round ${i + 1}/${MAX_ROUNDS}: sending tool results back to model`, startedAt);
+    emit({ stage: "reasoning", detail: statusMessage });
 
+    const isLastRound = i === MAX_ROUNDS - 1;
     current = await client.chat.completions.create({
       model: "gpt-5",
       messages,
-      tools: defineTools() as any,
-      tool_choice: "auto",
+      // On the final round, force a text answer instead of allowing another
+      // tool call — otherwise the loop can exhaust its round budget while the
+      // model is still mid-tool-call, returning empty content (see the
+      // "Empty response... falling back to mock" warning this was causing).
+      tools: isLastRound ? undefined : (defineTools() as any),
+      tool_choice: isLastRound ? undefined : "auto",
       max_completion_tokens: 8000,
       reasoning_effort: "low",
     } as any);
